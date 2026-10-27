@@ -1,0 +1,22 @@
+
+{
+  "vulnerabilities": [
+    {
+      "id": "SNYK-TEST-001",
+      "title": "Test vulnerability",
+      "severity": "low",
+      "packageName": "example-package",
+      "version": "1.0.0",
+      "description": "Synthetic vulnerability used for testing.",
+      "cvssScore": "2.5",
+      "from": [
+        "secure-cicd-platform",
+        "example-package"
+      ],
+      "fixedIn": ["1.0.1"],
+      "identifiers": {
+        "CVE": ["CVE-2025-12345"]
+      }
+    }
+  ]
+}

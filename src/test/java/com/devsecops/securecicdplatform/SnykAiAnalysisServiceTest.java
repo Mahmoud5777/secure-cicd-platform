@@ -19,7 +19,7 @@ class SnykAiAnalysisServiceTest {
     @Test
     void shouldAnalyzeAllSnykVulnerabilitiesWithAI() throws Exception {
 
-        Path reportPath = Path.of("snyk-report.json");
+        Path reportPath = Path.of("src/test/resources/snyk-report-test.json");
 
         String analysis = snykAiAnalysisService.analyzeFirstVulnerability(reportPath);
 

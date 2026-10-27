@@ -20,7 +20,7 @@ class SnykReportServiceTest {
     void shouldExtractVulnerabilitiesFromSnykReport()
             throws Exception {
 
-        Path reportPath = Path.of("snyk-report.json");
+        Path reportPath = Path.of("src/test/resources/snyk-report-test.json");
 
         List<String> vulnerabilities =
                 snykReportService.extractVulnerabilities(reportPath);
