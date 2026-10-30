@@ -36,4 +36,7 @@ build/
 .idea/
 .settings/
 .env
-
+# Fichiers générés localement
+effective-pom.xml
+snyk-report.json
+snyk-final-report.json
