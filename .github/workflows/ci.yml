@@ -1,5 +1,4 @@
-
-name: Secure CI Pipeline
+﻿name: Secure CI Pipeline
 
 on:
   push:
@@ -9,7 +8,7 @@ on:
 
 jobs:
   build-and-test:
-    name: Build and Test
+    name: Build, Test and Snyk Scan
     runs-on: ubuntu-latest
 
     steps:
@@ -25,3 +24,20 @@ jobs:
 
       - name: Build and run tests
         run: chmod +x mvnw && ./mvnw clean verify
+
+      - name: Install Snyk CLI
+        run: npm install -g snyk
+
+      - name: Run Snyk security scan
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: snyk test --json-file-output=snyk-report.json
+
+      - name: Upload Snyk report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-security-report
+          path: snyk-report.json
+          if-no-files-found: warn
