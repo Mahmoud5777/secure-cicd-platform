@@ -98,8 +98,17 @@ jobs:
           if-no-files-found: warn
 
       - name: Display AI analysis
-        if: success() && hashFiles('ai-security-analysis.txt') != ''
+        if: always() && hashFiles('ai-security-analysis.txt') != ''
         run: cat ai-security-analysis.txt
+
+      - name: Debug HIGH and CRITICAL vulnerabilities
+        if: always() && steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
+        run: |
+          jq -r '
+            .vulnerabilities[]
+            | select(.severity == "high" or .severity == "critical")
+            | "Severity: \(.severity)\nTitle: \(.title)\nPackage: \(.packageName)\nVersion: \(.version)\nID: \(.id)\n---"
+          ' snyk-report.json
 
       - name: Enforce security policy
         if: always() && steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
