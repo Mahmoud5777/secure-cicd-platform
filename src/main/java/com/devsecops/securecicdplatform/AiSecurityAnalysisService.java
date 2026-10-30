@@ -4,6 +4,7 @@ package com.devsecops.securecicdplatform;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -12,8 +13,6 @@ import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class AiSecurityAnalysisService {
-
-    private static final String MODEL = "openai/gpt-oss-20b";
 
     private static final String SYSTEM_PROMPT = """
             Tu es un analyste senior en sécurité applicative et DevSecOps.
@@ -133,24 +132,32 @@ public class AiSecurityAnalysisService {
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
+    private final String apiKey;
+    private final String model;
 
-    public AiSecurityAnalysisService(ObjectMapper objectMapper) {
+    public AiSecurityAnalysisService(
+            ObjectMapper objectMapper,
+            @Value("${groq.api.url}") String apiUrl,
+            @Value("${groq.api.model}") String model,
+            @Value("${groq.api.key}") String apiKey) {
+
         this.objectMapper = objectMapper;
+        this.apiKey = apiKey;
+        this.model = model;
 
         this.restClient = RestClient.builder()
-                .baseUrl("https://api.groq.com/openai/v1")
+                .baseUrl(apiUrl)
                 .build();
     }
 
     public String analyzeVulnerability(String vulnerabilitySummary) {
+
         if (vulnerabilitySummary == null
                 || vulnerabilitySummary.isBlank()) {
             throw new IllegalArgumentException(
                     "Le résumé de la vulnérabilité ne peut pas être vide."
             );
         }
-
-        String apiKey = System.getenv("GROQ_API_KEY");
 
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException(
@@ -160,7 +167,7 @@ public class AiSecurityAnalysisService {
         }
 
         Map<String, Object> requestBody = Map.of(
-                "model", MODEL,
+                "model", model,
                 "messages", List.of(
                         Map.of(
                                 "role", "system",
