@@ -30,10 +30,26 @@ jobs:
         run: npm install -g snyk
 
       - name: Run Snyk security scan
-        continue-on-error: true
+        id: snyk_scan
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk test --json-file-output=snyk-report.json
+        run: |
+          set +e
+          snyk test --json-file-output=snyk-report.json
+          SNYK_EXIT_CODE=$?
+          set -e
+
+          echo "Snyk exit code: $SNYK_EXIT_CODE"
+
+          if [ "$SNYK_EXIT_CODE" -ge 2 ]; then
+            echo "Snyk scan failed due to a technical error."
+            exit "$SNYK_EXIT_CODE"
+          fi
+
+          if [ ! -s snyk-report.json ]; then
+            echo "Snyk report was not generated."
+            exit 1
+          fi
 
       - name: Upload Snyk report
         if: always()
@@ -44,7 +60,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Start Spring Boot application
-        if: hashFiles('snyk-report.json') != ''
+        if: steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: |
@@ -64,7 +80,7 @@ jobs:
           exit 1
 
       - name: Send Snyk report for AI analysis
-        if: hashFiles('snyk-report.json') != ''
+        if: steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
         run: |
           curl --fail-with-body \
             --max-time 600 \
@@ -84,3 +100,22 @@ jobs:
       - name: Display AI analysis
         if: success() && hashFiles('ai-security-analysis.txt') != ''
         run: cat ai-security-analysis.txt
+
+      - name: Enforce security policy
+        if: always() && steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
+        run: |
+          if ! jq -e 'has("vulnerabilities") and (.vulnerabilities | type == "array")' snyk-report.json > /dev/null; then
+            echo "Invalid or unexpected Snyk JSON report."
+            exit 1
+          fi
+
+          HIGH_CRITICAL_COUNT=$(jq '[.vulnerabilities[] | select(.severity == "high" or .severity == "critical")] | length' snyk-report.json)
+
+          echo "HIGH and CRITICAL vulnerabilities: $HIGH_CRITICAL_COUNT"
+
+          if [ "$HIGH_CRITICAL_COUNT" -gt 0 ]; then
+            echo "Security policy failed: HIGH or CRITICAL vulnerabilities detected."
+            exit 1
+          fi
+
+          echo "Security policy passed: no HIGH or CRITICAL vulnerabilities."
