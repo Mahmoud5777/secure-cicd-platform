@@ -1,4 +1,5 @@
-﻿name: Secure CI Pipeline
+﻿
+name: Secure CI Pipeline
 
 on:
   push:
@@ -8,7 +9,7 @@ on:
 
 jobs:
   build-and-test:
-    name: Build, Test and Snyk Scan
+    name: Build, Test, Snyk Scan and AI Analysis
     runs-on: ubuntu-latest
 
     steps:
@@ -41,3 +42,45 @@ jobs:
           name: snyk-security-report
           path: snyk-report.json
           if-no-files-found: warn
+
+      - name: Start Spring Boot application
+        if: hashFiles('snyk-report.json') != ''
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          nohup ./mvnw spring-boot:run > app.log 2>&1 &
+          echo $! > app.pid
+
+          for i in {1..30}; do
+            if curl -fsS http://localhost:8080/api/status; then
+              echo "Spring Boot application is ready."
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "Spring Boot application failed to start."
+          cat app.log
+          exit 1
+
+      - name: Send Snyk report for AI analysis
+        if: hashFiles('snyk-report.json') != ''
+        run: |
+          curl --fail-with-body \
+            --max-time 600 \
+            -X POST \
+            -F "file=@snyk-report.json;type=application/json" \
+            http://localhost:8080/api/security/analyze \
+            -o ai-security-analysis.txt
+
+      - name: Upload AI analysis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-ai-analysis
+          path: ai-security-analysis.txt
+          if-no-files-found: warn
+
+      - name: Display AI analysis
+        if: success() && hashFiles('ai-security-analysis.txt') != ''
+        run: cat ai-security-analysis.txt
