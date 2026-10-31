@@ -42,9 +42,14 @@ jobs:
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.qualitygate.wait=true
 
-      # 5. Install Snyk CLI
+      # 5. Install Snyk CLI with locked version
       - name: Install Snyk CLI
-        run: npm install -g snyk
+        run: |
+          mkdir -p "$RUNNER_TEMP/snyk-cli"
+          cd "$RUNNER_TEMP/snyk-cli"
+          npm init -y
+          npm install --save-exact --package-lock=true --ignore-scripts snyk@1.1297.0
+          "$RUNNER_TEMP/snyk-cli/node_modules/.bin/snyk" --version
 
       # 6. Run Snyk security scan
       - name: Run Snyk security scan
@@ -53,7 +58,7 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
           set +e
-          snyk test --json-file-output=snyk-report.json
+          "$RUNNER_TEMP/snyk-cli/node_modules/.bin/snyk" test --json-file-output=snyk-report.json
           SNYK_EXIT_CODE=$?
           set -e
 
