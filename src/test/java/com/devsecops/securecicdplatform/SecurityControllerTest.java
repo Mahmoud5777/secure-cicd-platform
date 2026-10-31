@@ -1,3 +1,4 @@
+
 package com.devsecops.securecicdplatform;
 
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,9 @@ class SecurityControllerTest {
 
     @MockitoBean
     private SnykAiAnalysisService snykAiAnalysisService;
+
+    @MockitoBean
+    private SnykStatisticsService snykStatisticsService;
 
     @Test
     void shouldReturnApplicationStatus() throws Exception {
