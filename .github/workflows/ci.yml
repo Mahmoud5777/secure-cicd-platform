@@ -9,13 +9,17 @@ on:
 
 jobs:
   build-and-test:
-    name: Build, Test, Snyk Scan and AI Analysis
+    name: Build, Test, SonarQube, Snyk and AI Analysis
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
+      # 2. Set up Java 21
       - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
@@ -23,12 +27,26 @@ jobs:
           java-version: '21'
           cache: maven
 
+      # 3. Build and run tests
       - name: Build and run tests
         run: chmod +x mvnw && ./mvnw clean verify
 
+      # 4. SonarQube Cloud Analysis
+      - name: SonarQube Cloud Analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          ./mvnw sonar:sonar \
+            -Dsonar.organization=mahmoud5777 \
+            -Dsonar.projectKey=Mahmoud5777_secure-cicd-platform \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.qualitygate.wait=true
+
+      # 5. Install Snyk CLI
       - name: Install Snyk CLI
         run: npm install -g snyk
 
+      # 6. Run Snyk security scan
       - name: Run Snyk security scan
         id: snyk_scan
         env:
@@ -51,6 +69,7 @@ jobs:
             exit 1
           fi
 
+      # 7. Upload Snyk report
       - name: Upload Snyk report
         if: always()
         uses: actions/upload-artifact@v4
@@ -59,6 +78,7 @@ jobs:
           path: snyk-report.json
           if-no-files-found: warn
 
+      # 8. Start Spring Boot application
       - name: Start Spring Boot application
         if: steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
         env:
@@ -79,6 +99,7 @@ jobs:
           cat app.log
           exit 1
 
+      # 9. Send Snyk report for AI analysis
       - name: Send Snyk report for AI analysis
         if: steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
         run: |
@@ -89,6 +110,7 @@ jobs:
             http://localhost:8080/api/security/analyze \
             -o ai-security-analysis.txt
 
+      # 10. Upload AI analysis
       - name: Upload AI analysis
         if: always()
         uses: actions/upload-artifact@v4
@@ -97,10 +119,12 @@ jobs:
           path: ai-security-analysis.txt
           if-no-files-found: warn
 
+      # 11. Display AI analysis
       - name: Display AI analysis
         if: always() && hashFiles('ai-security-analysis.txt') != ''
         run: cat ai-security-analysis.txt
 
+      # 12. Debug HIGH and CRITICAL vulnerabilities
       - name: Debug HIGH and CRITICAL vulnerabilities
         if: always() && steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
         run: |
@@ -110,6 +134,7 @@ jobs:
             | "Severity: \(.severity)\nTitle: \(.title)\nPackage: \(.packageName)\nVersion: \(.version)\nID: \(.id)\n---"
           ' snyk-report.json
 
+      # 13. Enforce Snyk security policy
       - name: Enforce security policy
         if: always() && steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
         run: |
