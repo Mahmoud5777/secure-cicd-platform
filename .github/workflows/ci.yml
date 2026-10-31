@@ -36,7 +36,7 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
-          ./mvnw sonar:sonar \
+          ./mvnw org.sonarsource.scanner.maven:sonar-maven-plugin:5.3.0.6276:sonar \
             -Dsonar.organization=mahmoud5777 \
             -Dsonar.projectKey=Mahmoud5777_secure-cicd-platform \
             -Dsonar.host.url=https://sonarcloud.io \
