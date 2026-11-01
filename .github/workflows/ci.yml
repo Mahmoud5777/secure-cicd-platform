@@ -39,15 +39,41 @@ jobs:
 
       # 4. Build and run tests
       - name: Build and run tests
-        run: chmod +x mvnw && ./mvnw clean verify
-
-      # 5. Verify JaCoCo coverage report
-      - name: Verify JaCoCo report
         run: |
-          echo "Checking JaCoCo XML report..."
-          ls -lah target/site/jacoco/
-          test -s target/site/jacoco/jacoco.xml
-          echo "JaCoCo report successfully generated."
+          chmod +x mvnw
+          ./mvnw clean verify
+
+      # 5. Diagnose JaCoCo report generation
+      - name: Diagnose JaCoCo report
+        if: always()
+        run: |
+          echo "========== TARGET DIRECTORY =========="
+          if [ -d target ]; then
+            ls -lah target/
+          else
+            echo "Target directory does not exist."
+          fi
+
+          echo "========== JACOCO EXECUTION DATA =========="
+          if [ -f target/jacoco.exec ]; then
+            ls -lh target/jacoco.exec
+          else
+            echo "jacoco.exec was not generated."
+          fi
+
+          echo "========== JACOCO REPORT DIRECTORY =========="
+          if [ -d target/site/jacoco ]; then
+            ls -lah target/site/jacoco/
+          else
+            echo "JaCoCo report directory does not exist."
+          fi
+
+          echo "========== JACOCO XML =========="
+          if [ -s target/site/jacoco/jacoco.xml ]; then
+            echo "JaCoCo XML report successfully generated."
+          else
+            echo "JaCoCo XML report is missing or empty."
+          fi
 
       # 6. SonarQube Cloud Analysis
       - name: SonarQube Cloud Analysis
