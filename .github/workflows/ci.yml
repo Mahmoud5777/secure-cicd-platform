@@ -7,9 +7,13 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   build-and-test:
-    name: Build, Test, SonarQube, Snyk and AI Analysis
+    name: Build, Test, Security Scans and AI Analysis
     runs-on: ubuntu-latest
 
     steps:
@@ -19,7 +23,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 2. Set up Java 21
+      # 2. Detect exposed secrets with Gitleaks
+      - name: Gitleaks Secret Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 3. Set up Java 21
       - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
@@ -27,11 +37,11 @@ jobs:
           java-version: '21'
           cache: maven
 
-      # 3. Build and run tests
+      # 4. Build and run tests
       - name: Build and run tests
         run: chmod +x mvnw && ./mvnw clean verify
 
-      # 4. SonarQube Cloud Analysis
+      # 5. SonarQube Cloud Analysis
       - name: SonarQube Cloud Analysis
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -42,7 +52,7 @@ jobs:
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.qualitygate.wait=true
 
-      # 5. Install Snyk CLI with locked version
+      # 6. Install Snyk CLI with locked version
       - name: Install Snyk CLI
         run: |
           mkdir -p "$RUNNER_TEMP/snyk-cli"
@@ -51,7 +61,7 @@ jobs:
           npm install --save-exact --package-lock=true --ignore-scripts snyk@1.1297.0
           "$RUNNER_TEMP/snyk-cli/node_modules/.bin/snyk" --version
 
-      # 6. Run Snyk security scan
+      # 7. Run Snyk security scan
       - name: Run Snyk security scan
         id: snyk_scan
         env:
@@ -74,7 +84,7 @@ jobs:
             exit 1
           fi
 
-      # 7. Upload Snyk report
+      # 8. Upload Snyk report
       - name: Upload Snyk report
         if: always()
         uses: actions/upload-artifact@v4
@@ -83,7 +93,7 @@ jobs:
           path: snyk-report.json
           if-no-files-found: warn
 
-      # 8. Start Spring Boot application
+      # 9. Start Spring Boot application
       - name: Start Spring Boot application
         if: steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
         env:
@@ -104,7 +114,7 @@ jobs:
           cat app.log
           exit 1
 
-      # 9. Send Snyk report for AI analysis
+      # 10. Send Snyk report for AI analysis
       - name: Send Snyk report for AI analysis
         if: steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
         run: |
@@ -115,7 +125,7 @@ jobs:
             http://localhost:8080/api/security/analyze \
             -o ai-security-analysis.txt
 
-      # 10. Upload AI analysis
+      # 11. Upload AI analysis
       - name: Upload AI analysis
         if: always()
         uses: actions/upload-artifact@v4
@@ -124,12 +134,12 @@ jobs:
           path: ai-security-analysis.txt
           if-no-files-found: warn
 
-      # 11. Display AI analysis
+      # 12. Display AI analysis
       - name: Display AI analysis
         if: always() && hashFiles('ai-security-analysis.txt') != ''
         run: cat ai-security-analysis.txt
 
-      # 12. Debug HIGH and CRITICAL vulnerabilities
+      # 13. Debug HIGH and CRITICAL vulnerabilities
       - name: Debug HIGH and CRITICAL vulnerabilities
         if: always() && steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
         run: |
@@ -139,7 +149,7 @@ jobs:
             | "Severity: \(.severity)\nTitle: \(.title)\nPackage: \(.packageName)\nVersion: \(.version)\nID: \(.id)\n---"
           ' snyk-report.json
 
-      # 13. Enforce Snyk security policy
+      # 14. Enforce Snyk security policy
       - name: Enforce security policy
         if: always() && steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
         run: |
@@ -158,3 +168,18 @@ jobs:
           fi
 
           echo "Security policy passed: no HIGH or CRITICAL vulnerabilities."
+
+      # 15. Build Docker image
+      - name: Build Docker image
+        run: docker build -t secure-cicd-platform:${{ github.sha }} .
+
+      # 16. Scan Docker image with Trivy
+      - name: Trivy Docker image scan
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: secure-cicd-platform:${{ github.sha }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
