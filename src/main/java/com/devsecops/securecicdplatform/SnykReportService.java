@@ -68,8 +68,7 @@ public class SnykReportService {
 
             if (fixedIn.isArray()) {
                 for (JsonNode fixedVersion : fixedIn) {
-                    if (fixedVersion != null
-                            && !fixedVersion.isNull()
+                    if (!fixedVersion.isNull()
                             && !fixedVersion.asText().isBlank()) {
 
                         fixedVersions.add(fixedVersion.asText());
@@ -137,7 +136,7 @@ public class SnykReportService {
         List<String> elements = new ArrayList<>();
 
         for (JsonNode element : pathNode) {
-            if (element != null && !element.isNull()) {
+            if (!element.isNull()) {
                 String value = element.asText();
 
                 if (!value.isBlank()) {

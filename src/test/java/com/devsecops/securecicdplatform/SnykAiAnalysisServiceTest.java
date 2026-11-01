@@ -1,4 +1,3 @@
-
 package com.devsecops.securecicdplatform;
 
 import org.junit.jupiter.api.Test;
@@ -8,8 +7,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.nio.file.Path;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @SpringBootTest
@@ -21,23 +19,92 @@ class SnykAiAnalysisServiceTest {
     @MockitoBean
     private AiSecurityAnalysisService aiSecurityAnalysisService;
 
+    @MockitoBean
+    private SnykReportService snykReportService;
+
+    private final Path reportPath = Path.of("snyk-report-test.json");
+
     @Test
-    void shouldAnalyzeAllSnykVulnerabilitiesWithAI() throws Exception {
+    void shouldAnalyzeFirstVulnerability() throws Exception {
 
-        when(aiSecurityAnalysisService.analyzeVulnerability(anyString()))
-                .thenReturn("Analyse IA simulée pour le test.");
+        when(snykReportService.extractVulnerabilities(reportPath))
+                .thenReturn(java.util.List.of("Vulnérabilité A", "Vulnérabilité B"));
 
-        Path reportPath =
-                Path.of("src/test/resources/snyk-report-test.json");
+        when(aiSecurityAnalysisService.analyzeVulnerability("Vulnérabilité A"))
+                .thenReturn("Analyse IA réussie.");
 
-        String analysis =
+        String result =
                 snykAiAnalysisService.analyzeFirstVulnerability(reportPath);
 
-        assertNotNull(analysis);
-        assertFalse(analysis.isBlank());
-        assertFalse(analysis.contains("Échec"));
+        assertEquals("Analyse IA réussie.", result);
 
         verify(aiSecurityAnalysisService, times(1))
-                .analyzeVulnerability(anyString());
+                .analyzeVulnerability("Vulnérabilité A");
+    }
+
+    @Test
+    void shouldReturnMessageWhenNoVulnerabilitiesExist() throws Exception {
+
+        when(snykReportService.extractVulnerabilities(reportPath))
+                .thenReturn(java.util.List.of());
+
+        String result =
+                snykAiAnalysisService.analyzeAllVulnerabilities(reportPath);
+
+        assertTrue(result.contains("Aucune vulnérabilité"));
+
+        verifyNoInteractions(aiSecurityAnalysisService);
+    }
+
+    @Test
+    void shouldAnalyzeAllVulnerabilities() throws Exception {
+
+        when(snykReportService.extractVulnerabilities(reportPath))
+                .thenReturn(java.util.List.of("Vulnérabilité A"));
+
+        when(aiSecurityAnalysisService.analyzeVulnerability("Vulnérabilité A"))
+                .thenReturn("Analyse IA réussie.");
+
+        String result =
+                snykAiAnalysisService.analyzeAllVulnerabilities(reportPath);
+
+        assertTrue(result.contains("Analyses réussies : 1"));
+        assertTrue(result.contains("Analyses échouées : 0"));
+        assertTrue(result.contains("Analyse IA réussie."));
+
+        verify(aiSecurityAnalysisService, times(1))
+                .analyzeVulnerability("Vulnérabilité A");
+    }
+
+    @Test
+    void shouldHandleEmptyAiResponse() throws Exception {
+
+        when(snykReportService.extractVulnerabilities(reportPath))
+                .thenReturn(java.util.List.of("Vulnérabilité A"));
+
+        when(aiSecurityAnalysisService.analyzeVulnerability(anyString()))
+                .thenReturn(" ");
+
+        String result =
+                snykAiAnalysisService.analyzeAllVulnerabilities(reportPath);
+
+        assertTrue(result.contains("Analyses réussies : 0"));
+        assertTrue(result.contains("Analyses échouées : 1"));
+    }
+
+    @Test
+    void shouldHandleAiException() throws Exception {
+
+        when(snykReportService.extractVulnerabilities(reportPath))
+                .thenReturn(java.util.List.of("Vulnérabilité A"));
+
+        when(aiSecurityAnalysisService.analyzeVulnerability(anyString()))
+                .thenThrow(new RuntimeException("Erreur IA simulée"));
+
+        String result =
+                snykAiAnalysisService.analyzeAllVulnerabilities(reportPath);
+
+        assertTrue(result.contains("Analyses échouées : 1"));
+        assertTrue(result.contains("Échec de l'analyse IA"));
     }
 }

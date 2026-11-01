@@ -42,16 +42,21 @@ public class SecurityController {
     }
 
     private Path createSecureTempFile() throws IOException {
+        return createSecureTempFile(REPORT_DIRECTORY);
+    }
 
-        Files.createDirectories(REPORT_DIRECTORY);
+    // Package-private pour permettre de tester les protections du répertoire.
+    Path createSecureTempFile(Path reportDirectory) throws IOException {
 
-        if (Files.isSymbolicLink(REPORT_DIRECTORY)) {
+        Files.createDirectories(reportDirectory);
+
+        if (Files.isSymbolicLink(reportDirectory)) {
             throw new IOException("Répertoire de rapports non sécurisé.");
         }
 
         try {
             Files.setPosixFilePermissions(
-                    REPORT_DIRECTORY,
+                    reportDirectory,
                     PosixFilePermissions.fromString("rwx------")
             );
         } catch (UnsupportedOperationException ignored) {
@@ -59,7 +64,7 @@ public class SecurityController {
         }
 
         Path tempFile = Files.createTempFile(
-                REPORT_DIRECTORY,
+                reportDirectory,
                 "snyk-report-",
                 ".json"
         );
