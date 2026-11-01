@@ -1,5 +1,4 @@
-﻿
-name: Secure CI Pipeline
+﻿name: Secure CI Pipeline
 
 on:
   push:
@@ -75,8 +74,8 @@ jobs:
             echo "JaCoCo XML report is missing or empty."
           fi
 
-      # 6. SonarQube Cloud Analysis
-      - name: SonarQube Cloud Analysis
+      # 6. SonarCloud Analysis
+      - name: SonarCloud Analysis
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
@@ -87,7 +86,7 @@ jobs:
             -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
             -Dsonar.qualitygate.wait=true
 
-      # 7. Install Snyk CLI with locked version
+      # 7. Install Snyk CLI
       - name: Install Snyk CLI
         run: |
           mkdir -p "$RUNNER_TEMP/snyk-cli"
@@ -218,3 +217,21 @@ jobs:
           ignore-unfixed: true
           vuln-type: os,library
           severity: CRITICAL,HIGH
+
+      # 18. Login to Docker Hub (main branch only)
+      - name: Login to Docker Hub
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 19. Publish Docker image to Docker Hub
+      - name: Publish Docker image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker tag secure-cicd-platform:${{ github.sha }} mahmoud5777/secure-cicd-platform:latest
+          docker tag secure-cicd-platform:${{ github.sha }} mahmoud5777/secure-cicd-platform:${{ github.sha }}
+
+          docker push mahmoud5777/secure-cicd-platform:latest
+          docker push mahmoud5777/secure-cicd-platform:${{ github.sha }}
