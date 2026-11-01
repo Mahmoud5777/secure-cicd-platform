@@ -41,7 +41,15 @@ jobs:
       - name: Build and run tests
         run: chmod +x mvnw && ./mvnw clean verify
 
-      # 5. SonarQube Cloud Analysis
+      # 5. Verify JaCoCo coverage report
+      - name: Verify JaCoCo report
+        run: |
+          echo "Checking JaCoCo XML report..."
+          ls -lah target/site/jacoco/
+          test -s target/site/jacoco/jacoco.xml
+          echo "JaCoCo report successfully generated."
+
+      # 6. SonarQube Cloud Analysis
       - name: SonarQube Cloud Analysis
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -50,9 +58,10 @@ jobs:
             -Dsonar.organization=mahmoud5777 \
             -Dsonar.projectKey=Mahmoud5777_secure-cicd-platform \
             -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
             -Dsonar.qualitygate.wait=true
 
-      # 6. Install Snyk CLI with locked version
+      # 7. Install Snyk CLI with locked version
       - name: Install Snyk CLI
         run: |
           mkdir -p "$RUNNER_TEMP/snyk-cli"
@@ -61,7 +70,7 @@ jobs:
           npm install --save-exact --package-lock=true --ignore-scripts snyk@1.1297.0
           "$RUNNER_TEMP/snyk-cli/node_modules/.bin/snyk" --version
 
-      # 7. Run Snyk security scan
+      # 8. Run Snyk security scan
       - name: Run Snyk security scan
         id: snyk_scan
         env:
@@ -84,7 +93,7 @@ jobs:
             exit 1
           fi
 
-      # 8. Upload Snyk report
+      # 9. Upload Snyk report
       - name: Upload Snyk report
         if: always()
         uses: actions/upload-artifact@v4
@@ -93,7 +102,7 @@ jobs:
           path: snyk-report.json
           if-no-files-found: warn
 
-      # 9. Start Spring Boot application
+      # 10. Start Spring Boot application
       - name: Start Spring Boot application
         if: steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
         env:
@@ -114,7 +123,7 @@ jobs:
           cat app.log
           exit 1
 
-      # 10. Send Snyk report for AI analysis
+      # 11. Send Snyk report for AI analysis
       - name: Send Snyk report for AI analysis
         if: steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
         run: |
@@ -125,7 +134,7 @@ jobs:
             http://localhost:8080/api/security/analyze \
             -o ai-security-analysis.txt
 
-      # 11. Upload AI analysis
+      # 12. Upload AI analysis
       - name: Upload AI analysis
         if: always()
         uses: actions/upload-artifact@v4
@@ -134,12 +143,12 @@ jobs:
           path: ai-security-analysis.txt
           if-no-files-found: warn
 
-      # 12. Display AI analysis
+      # 13. Display AI analysis
       - name: Display AI analysis
         if: always() && hashFiles('ai-security-analysis.txt') != ''
         run: cat ai-security-analysis.txt
 
-      # 13. Debug HIGH and CRITICAL vulnerabilities
+      # 14. Debug HIGH and CRITICAL vulnerabilities
       - name: Debug HIGH and CRITICAL vulnerabilities
         if: always() && steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
         run: |
@@ -149,7 +158,7 @@ jobs:
             | "Severity: \(.severity)\nTitle: \(.title)\nPackage: \(.packageName)\nVersion: \(.version)\nID: \(.id)\n---"
           ' snyk-report.json
 
-      # 14. Enforce Snyk security policy
+      # 15. Enforce Snyk security policy
       - name: Enforce security policy
         if: always() && steps.snyk_scan.outcome == 'success' && hashFiles('snyk-report.json') != ''
         run: |
@@ -169,13 +178,13 @@ jobs:
 
           echo "Security policy passed: no HIGH or CRITICAL vulnerabilities."
 
-      # 15. Build Docker image
+      # 16. Build Docker image
       - name: Build Docker image
         run: docker build -t secure-cicd-platform:${{ github.sha }} .
 
-      # 16. Scan Docker image with Trivy
+      # 17. Scan Docker image with Trivy
       - name: Trivy Docker image scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.33.1
         with:
           image-ref: secure-cicd-platform:${{ github.sha }}
           format: table
