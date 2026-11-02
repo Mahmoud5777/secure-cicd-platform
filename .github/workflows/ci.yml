@@ -8,12 +8,14 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   build-and-test:
     name: Build, Test, Security Scans and AI Analysis
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
 
     steps:
       # 1. Checkout repository
@@ -235,3 +237,30 @@ jobs:
 
           docker push mahmoud5777/secure-cicd-platform:latest
           docker push mahmoud5777/secure-cicd-platform:${{ github.sha }}
+
+  deploy-production:
+    name: Deploy to Local Windows Docker
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: self-hosted
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Deploy application
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy.ps1
+
+      - name: Verify application health
+        shell: powershell
+        run: |
+          $response = Invoke-RestMethod -Uri "http://localhost:8080/api/status" -TimeoutSec 30
+
+          if ($response.status -ne "UP") {
+              throw "Application health check failed."
+          }
+
+          Write-Host "Application deployed and healthy!"
